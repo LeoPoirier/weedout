@@ -78,6 +78,11 @@
   }
   .checklist input{ width:18px; height:18px; accent-color: var(--green); }
 
+  .activite-row{ display:flex; gap:8px; margin:8px 0; align-items:center; }
+  .activite-row .act-nom{ flex:2; }
+  .activite-row .act-heure{ flex:1; }
+  .activite-row .act-del{ flex:0 0 auto; background:#210b0b; color:#ff8a80; border:1px solid #5c1f1a; padding:10px 12px; }
+
   .range-wrap{ display:flex; align-items:center; gap:10px; margin-top:4px;}
   input[type="range"]{ flex:1; accent-color: var(--green); height:28px; }
   .range-val{
@@ -250,8 +255,10 @@
           <input type="number" min="0" id="tempsConsacre" placeholder="0">
         </div>
       </div>
-      <label>Activité prévue</label>
-      <input type="text" id="activitePrevue">
+      <label>Activités prévues</label>
+      <div id="activitesList"></div>
+      <button type="button" class="btn-secondary" id="addActiviteBtn">+ Ajouter une activité</button>
+
       <label>Activité réalisée</label>
       <input type="text" id="activiteRealisee">
       <label>Satisfaction personnelle (0–10) : <span id="val-satisfaction">0</span></label>
@@ -295,7 +302,21 @@
     </div>
 
     <div class="card">
-      <h2><span class="badge">D</span> État général</h2>
+      <h2><span class="badge">D</span> Consommation nocturne</h2>
+      <div class="grid2">
+        <div>
+          <label>Quantité (g)</label>
+          <input type="number" step="0.1" min="0" id="nocturneQte" placeholder="0.0">
+        </div>
+        <div>
+          <label>Heure du réveil</label>
+          <input type="time" id="heureReveil">
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="badge">E</span> État général</h2>
       <label>Humeur (0–10) : <span id="val-humeur">0</span></label>
       <div class="range-wrap"><input type="range" min="0" max="10" value="0" id="humeur"></div>
 
@@ -478,7 +499,7 @@
       pQuantite: numf("p-quantite"),
 
       heureRetour: val("heureRetour"),
-      activitePrevue: val("activitePrevue"),
+      activites: collectActivites(),
       activiteRealisee: val("activiteRealisee"),
       tempsConsacre: num("tempsConsacre"),
       satisfaction: num("satisfaction"),
@@ -491,6 +512,9 @@
       apresRepas: val("apresRepasOuiNon"),
       apresRepasQte: numf("apresRepasQte"),
 
+      nocturneQte: numf("nocturneQte"),
+      heureReveil: val("heureReveil"),
+
       humeur: num("humeur"),
       motivation: num("motivation"),
       sommeil: num("sommeil"),
@@ -502,6 +526,43 @@
   function num(id){ return parseInt(document.getElementById(id).value) || 0; }
   function chk(id){ return document.getElementById(id).checked; }
   function numf(id){ const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 0 : v; }
+
+  // ---------- ACTIVITÉS (dynamic list) ----------
+  function activiteRowHTML(nom, heure){
+    const safeNom = (nom || "").replace(/"/g, "&quot;");
+    return `<div class="activite-row">
+      <input type="text" class="act-nom" placeholder="Activité" value="${safeNom}">
+      <input type="time" class="act-heure" value="${heure || ""}">
+      <button type="button" class="act-del">✕</button>
+    </div>`;
+  }
+  function addActiviteRow(nom, heure){
+    const list = document.getElementById("activitesList");
+    const wrap = document.createElement("div");
+    wrap.innerHTML = activiteRowHTML(nom, heure);
+    const row = wrap.firstElementChild;
+    row.querySelector(".act-del").addEventListener("click", ()=> row.remove());
+    list.appendChild(row);
+  }
+  function resetActivites(){
+    document.getElementById("activitesList").innerHTML = "";
+    addActiviteRow();
+  }
+  function fillActivites(activites){
+    document.getElementById("activitesList").innerHTML = "";
+    if(activites && activites.length){
+      activites.forEach(a=> addActiviteRow(a.activite, a.heure));
+    } else {
+      addActiviteRow();
+    }
+  }
+  function collectActivites(){
+    return Array.from(document.querySelectorAll("#activitesList .activite-row")).map(row=>({
+      activite: row.querySelector(".act-nom").value.trim(),
+      heure: row.querySelector(".act-heure").value
+    })).filter(a=> a.activite !== "" || a.heure !== "");
+  }
+  document.getElementById("addActiviteBtn").addEventListener("click", ()=> addActiviteRow());
 
   function fillForm(entry){
     setRadio("contrariete", entry.contrariete);
@@ -518,7 +579,7 @@
     setVal("p-quantite", entry.pQuantite);
 
     setVal("heureRetour", entry.heureRetour);
-    setVal("activitePrevue", entry.activitePrevue);
+    fillActivites(entry.activites && entry.activites.length ? entry.activites : (entry.activitePrevue ? [{activite: entry.activitePrevue, heure: ""}] : null));
     setVal("activiteRealisee", entry.activiteRealisee);
     setVal("tempsConsacre", entry.tempsConsacre);
     setRange("satisfaction", entry.satisfaction);
@@ -530,6 +591,9 @@
     setVal("avantRepasQte", entry.avantRepasQte);
     setVal("apresRepasOuiNon", entry.apresRepas || "non");
     setVal("apresRepasQte", entry.apresRepasQte);
+
+    setVal("nocturneQte", entry.nocturneQte);
+    setVal("heureReveil", entry.heureReveil);
 
     setRange("humeur", entry.humeur);
     setRange("motivation", entry.motivation);
@@ -545,6 +609,7 @@
     document.querySelectorAll('.radio-row input[type="radio"]').forEach(r=>r.checked=false);
     document.getElementById("avantRepasOuiNon").value = "non";
     document.getElementById("apresRepasOuiNon").value = "non";
+    resetActivites();
   }
   function setVal(id, v){ document.getElementById(id).value = (v===undefined||v===null) ? "" : v; }
   function setChk(id, v){ document.getElementById(id).checked = !!v; }
@@ -658,7 +723,7 @@
     let sH=0,sM=0,sS=0,sF=0, nH=0,nM=0,nS=0,nF=0;
 
     present.forEach(e=>{
-      const qte = (e.pQuantite||0) + (e.quantiteTotale||0);
+      const qte = (e.pQuantite||0) + (e.quantiteTotale||0) + (e.nocturneQte||0);
       if(qte > 0) joursConso++;
       totalQte += qte;
       if(e.protocole?.consomme) impulsif++;
@@ -687,7 +752,7 @@
     const dayLabels = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
     const qtes = range.map(d => {
       const e = all[d];
-      return e ? ((e.pQuantite||0) + (e.quantiteTotale||0)) : 0;
+      return e ? ((e.pQuantite||0) + (e.quantiteTotale||0) + (e.nocturneQte||0)) : 0;
     });
     const max = Math.max(1, ...qtes);
     const chart = document.getElementById("chart");
@@ -716,7 +781,7 @@
     }
     dates.forEach(date=>{
       const e = all[date];
-      const qte = (e.pQuantite||0) + (e.quantiteTotale||0);
+      const qte = (e.pQuantite||0) + (e.quantiteTotale||0) + (e.nocturneQte||0);
       const det = document.createElement("details");
       det.className = "entry";
       det.innerHTML = `
@@ -733,13 +798,16 @@
           <div class="row"><span class="k">Protocole 20min</span><span>${["differe","identifie","reevalue","evite","consomme"].filter(k=>e.protocole?.[k]).map(k=>({differe:"différé",identifie:"identifié",reevalue:"réévalué",evite:"évité",consomme:"consommé"}[k])).join(", ") || '–'}</span></div>
           <div class="row"><span class="k">Qté (impulsive)</span><span>${e.pQuantite || 0} g</span></div>
           <div class="row"><span class="k">Heure retour</span><span>${e.heureRetour || '–'}</span></div>
-          <div class="row"><span class="k">Activité prévue / réalisée</span><span>${e.activitePrevue||'–'} / ${e.activiteRealisee||'–'}</span></div>
+          <div class="row"><span class="k">Activités prévues</span><span>${(e.activites && e.activites.length) ? e.activites.map(a=> a.activite + (a.heure ? ' ('+a.heure+')' : '')).join(', ') : (e.activitePrevue || '–')}</span></div>
+          <div class="row"><span class="k">Activité réalisée</span><span>${e.activiteRealisee || '–'}</span></div>
           <div class="row"><span class="k">Temps consacré</span><span>${e.tempsConsacre||0} min</span></div>
           <div class="row"><span class="k">Satisfaction soirée</span><span>${e.satisfaction}/10</span></div>
           <div class="row"><span class="k">Nb joints</span><span>${e.nombreJoints||0}</span></div>
           <div class="row"><span class="k">Qté totale soir</span><span>${e.quantiteTotale||0} g</span></div>
           <div class="row"><span class="k">Avant repas</span><span>${e.avantRepas==='oui' ? (e.avantRepasQte+' g') : 'Non'}</span></div>
           <div class="row"><span class="k">Après repas</span><span>${e.apresRepas==='oui' ? (e.apresRepasQte+' g') : 'Non'}</span></div>
+          <div class="row"><span class="k">Consommation nocturne</span><span>${e.nocturneQte ? e.nocturneQte+' g' : '–'}</span></div>
+          <div class="row"><span class="k">Heure de réveil</span><span>${e.heureReveil || '–'}</span></div>
           <div class="row"><span class="k">Humeur / Motivation</span><span>${e.humeur}/10 · ${e.motivation}/10</span></div>
           <div class="row"><span class="k">Sommeil / Fatigue</span><span>${e.sommeil}/10 · ${e.fatigue}/10</span></div>
           <div class="row"><span class="k">Observations</span><span>${e.observations || '–'}</span></div>
